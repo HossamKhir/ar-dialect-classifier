@@ -5,10 +5,16 @@ import json
 import nltk
 import numpy as np
 import os
-import pandas as pd
 import pickle
 import tensorflow as tf
 from aim_task.fetch_data import DATA_PATH
+from aim_task.preprocess_data import (
+    build_tokeniser,
+    init_preprocess,
+    MAX_LENGTH,
+    onehot_encode_labels,
+    tokenise_pad_texts,
+)
 from itertools import chain
 from nltk.corpus import stopwords
 
@@ -23,18 +29,12 @@ finally:
     # STOP_WORDS_BASIC = stopwords.words("arabic")
 
 from nltk.tokenize import RegexpTokenizer
-from preprocess_data import (
-    build_tokeniser,
-    init_preprocess,
-    MAX_LENGTH,
-    onehot_encode_labels,
-    tokenise_pad_texts,
-)
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.metrics import classification_report
-from sklearn.model_selection import cross_validate
 from sklearn.naive_bayes import MultinomialNB
 from sklearn.pipeline import make_pipeline
+
+labels = []
 
 
 def tokeniser(string: str) -> list:
@@ -78,13 +78,17 @@ def build_naive_bayes_model(*args, **kwargs):
 
 if __name__ == "__main__":
     X_train, X_test, y_train, y_test = init_preprocess()
-    scoring = [
-        "neg_log_loss",
-        "f1_micro",
-        "f1_macro",
-        "precision_micro",
-        "recall_micro",
-    ]
+    # scoring = [
+    #     "neg_log_loss",
+    #     "f1_micro",
+    #     "f1_macro",
+    #     "precision_micro",
+    #     "recall_micro",
+    # ]
+
+    labels = y_train.cat.categories.values.tolist()
+    labels_path = os.path.join(DATA_PATH, "raw/labels.json")
+    json.dump(labels, open(labels_path, "w"))
 
     model_classic = build_naive_bayes_model()
     _ = model_classic.fit(X_train, y_train)
@@ -97,6 +101,11 @@ if __name__ == "__main__":
 
     corpus = np.r_[X_train.values, X_test.values]
     tknsr = build_tokeniser(corpus)
+
+    tokeniser_json = tknsr.to_json()
+    tokeniser_path = os.path.join(DATA_PATH, "models/tokeniser.json")
+    json.dump(open(tokeniser_path, "w"))
+
     corpus = tokenise_pad_texts(corpus)
     labels = np.r_[y_train, y_test]
     labels = onehot_encode_labels(labels)

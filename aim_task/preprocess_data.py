@@ -7,7 +7,7 @@ import pickle
 import numpy as np
 import pandas as pd
 import tensorflow as tf
-from fetch_data import load_full_dataset, DATA_PATH
+from aim_task.fetch_data import load_full_dataset, DATA_PATH
 from sklearn.model_selection import train_test_split
 from typing import Tuple, Union
 
