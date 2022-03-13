@@ -1,22 +1,26 @@
 """
 """
 
+# flake8: noqa
+
 import json
-import nltk
-import numpy as np
 import os
 import pickle
+from itertools import chain
+
+import nltk
+import numpy as np
 import tensorflow as tf
+from nltk.corpus import stopwords
+
 from aim_task.fetch_data import DATA_PATH
 from aim_task.preprocess_data import (
+    MAX_LENGTH,
     build_tokeniser,
     init_preprocess,
-    MAX_LENGTH,
     onehot_encode_labels,
     tokenise_pad_texts,
 )
-from itertools import chain
-from nltk.corpus import stopwords
 
 try:
     STOP_WORDS_BASIC = stopwords.words("arabic")
@@ -32,21 +36,26 @@ from nltk.tokenize import RegexpTokenizer
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.metrics import classification_report
 from sklearn.naive_bayes import MultinomialNB
-from sklearn.pipeline import make_pipeline
+from sklearn.pipeline import make_pipeline, Pipeline
 
 labels = []
 
 
 def tokeniser(string: str) -> list:
-    """https://stackoverflow.com/questions/952914/how-to-make-a-flat-list-out-of-a-list-of-lists
+    """a function to be passed to `CountVectorizer` instead of the built-in
+    types to allow for a combination of character-word n-grams
+
+    https://stackoverflow.com/questions/952914/how-to-make-a-flat-list-out-of-a-list-of-lists
+    https://stackoverflow.com/questions/5466451/how-can-i-print-literal-curly-brace-characters-in-a-string-and-also-use-format
 
     Parameters:
     -----------
+    string: the string to be tokenised
 
     Returns:
     --------
-
-    TODO complete pydoc
+    out: list
+        a sorted list of the tokens found in tokenising the `string`
     """
     regex_c37 = r"(?u)(?=(\w{3}))" + "".join(
         [f"(?=(\\w{{,{i}}}))" for i in range(4, 8)]
@@ -60,11 +69,20 @@ def tokeniser(string: str) -> list:
     return sorted(tokens)
 
 
-def build_naive_bayes_model(*args, **kwargs):
-    """builds and returns an sklearn pipeline
+def build_naive_bayes_model(*args, **kwargs) -> Pipeline:
+    """builds and returns an sklearn pipeline, where the stages are a
+    `CountVectorizer` followed by a `MultinomialNB` model. The `` pairs
+    are expected to be
 
+    Parameters:
+    -----------
+    kwargs: the keyword arguments for `CountVectorizer` and possibly a keyword
+    argument `alpha` for `MultinomialNB`
 
-    TODO complete the pydoc
+    Returns:
+    --------
+    out: sklearn.pipeline.Pipeline
+        the pipeline ready to train
     """
     if "stop_words" not in kwargs:
         kwargs["stop_words"] = STOP_WORDS_BASIC
@@ -78,13 +96,6 @@ def build_naive_bayes_model(*args, **kwargs):
 
 if __name__ == "__main__":
     X_train, X_test, y_train, y_test = init_preprocess()
-    # scoring = [
-    #     "neg_log_loss",
-    #     "f1_micro",
-    #     "f1_macro",
-    #     "precision_micro",
-    #     "recall_micro",
-    # ]
 
     labels = y_train.cat.categories.values.tolist()
     labels_path = os.path.join(DATA_PATH, "raw/labels.json")

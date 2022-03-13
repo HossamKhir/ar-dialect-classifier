@@ -1,12 +1,15 @@
 """
 """
+# flake8: noqa
 
+import json
 import os
 import pickle
+from typing import Callable
+
 import pandas as pd
 import requests
-import json
-from typing import Callable
+from sklearn.pipeline import Pipeline
 
 AIM_URI = "https://recruitment.aimtechnologies.co/ai-tasks"
 ID_LIMIT = 1000
@@ -50,7 +53,9 @@ def fetch_tweets_by_id(ids: list, object_hook: Callable = None) -> dict:
 def check_cached_data() -> bool:
     """checks if the data has been loaded before and cached
 
-    FIXME complete the pydoc
+    Returns:
+    --------
+    `True` if the data pickled file is found under the data path
     """
     filename = FILENAME + ".pkl"
     for _, _, filenames in os.walk(os.path.join(DATA_PATH, "raw/")):
@@ -60,9 +65,11 @@ def check_cached_data() -> bool:
 
 
 def load_local_dataset() -> pd.DataFrame:
-    """loads the local dataset
+    """loads the local dataset from disk
 
-    FIXME complete the pydoc
+    Returns:
+    -------
+    out: a dataframe with `id` as index, and a categorical column `dialect`
     """
     file_path = os.path.join(DATA_PATH, f"raw/{FILENAME}.csv")
     df = pd.read_csv(file_path, index_col=["id"])
@@ -71,9 +78,21 @@ def load_local_dataset() -> pd.DataFrame:
 
 
 def fetch_remote_dataset(ids: list, object_hook: Callable = None) -> pd.DataFrame:
-    """fetches the dataset by POSTing to URI
+    """fetches the dataset by POSTing to the AIM_URI. This subroutine
+    internally handles the limit set by the AIM_URI of 1000 IDs per call
 
-    FIXME complete the pydoc
+    Parameters:
+    -----------
+    ids: list
+        the list of IDs of tweets to be fetched from the URL
+    object_hook: function
+        a callable function to be applied to the object returned by the
+        response
+
+    Returns:
+    --------
+    out: `pandas.DataFrame`
+        the fetched tweets, with the given `ids` as their index
     """
     tweets = fetch_tweets_by_id(ids, object_hook=object_hook)
     return pd.DataFrame(
@@ -84,9 +103,24 @@ def fetch_remote_dataset(ids: list, object_hook: Callable = None) -> pd.DataFram
 def load_full_dataset(
     force: bool = False, cache: bool = True, object_hook: Callable = None
 ) -> pd.DataFrame:
-    """loads the full dataset
+    """loads the full dataset from both local storage, and remote storage
 
-    # FIXME complete the pydoc
+    Parameters:
+    -----------
+    force: bool
+        whether to fetch the data regardless if it is cached locally or not
+        defaults to `False`
+    cache: bool
+        whether to keep a cached copy of the full dataset after loading it
+        defaults to `True`
+    object_hook: function
+        a callable subroutine to be applied on the returned tweets from
+        remote fetching
+
+    Returns:
+    --------
+    out: `pandas.DataFrame`
+        a dataframe with `id` for index, `tweets`, `dialect` for columns
     """
     cached_file_path = os.path.join(DATA_PATH, f"raw/{FILENAME}.pkl")
     if not force and check_cached_data():
@@ -101,19 +135,23 @@ def load_full_dataset(
         return full_df
 
 
-def load_classic_model(name: str = "benchmark"):
+def load_classic_model(name: str = "benchmark") -> Pipeline:
     """loads a classic ML model saved as `.pkl` pickled file
 
     Parameters:
     -----------
+    name: string
+        the name of the model by which it was saved
 
     Returns:
     --------
+    out: `sklearn.pipeline.Pipeline`
+        a pipeline object ready for train/test
 
     Raises:
     -------
-
-    TODO complete the pydoc
+    FileNotFoundError
+        if the given model name is not found under saved models
     """
     path = os.path.join(DATA_PATH, f"models/{name}.pkl")
     if not os.path.isfile(path):

@@ -1,17 +1,20 @@
 """
 """
 
+# flake8: noqa
+
 import os
-import re
 import pickle
+import re
+from typing import Tuple, Union
+
 import numpy as np
 import pandas as pd
 import tensorflow as tf
-from aim_task.fetch_data import load_full_dataset, DATA_PATH
 from sklearn.model_selection import train_test_split
-from typing import Tuple, Union
 
-# from nltk.tokenize import TweetTokenizer
+from aim_task.fetch_data import DATA_PATH, load_full_dataset
+
 
 REGEX_HANDLER = r"(?u)@\w+"
 REGEX_HYPERLINK = r"(?u)https?://\w+"
@@ -55,16 +58,28 @@ REGEX_IRA2ARA = {
     r"[\u06d9\ufef5\ufef7\ufef9]": "\ufefb",
 }
 
-# FIXME set this by EDA
+# FIXME set this by EDA, kept for matching saved keras model
 MAX_LENGTH = 1024
 
 
 def store_validation_set(
     df: pd.DataFrame, set_size: float = 0.2
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
-    """stores a copy of validation set on disk
+    """stores a copy of validation set on disk, and returns the train, &
+    validation sets
 
-    FIXME complete pydoc
+    Parameters:
+    -----------
+    df: `pandas.DataFrame`
+        the dataframe to cut a validation set from
+    set_size: float
+        the ratio of the dataset to keep for validation, defaults to `0.2`
+
+    Returns:
+    --------
+    out: tuple
+        a tuple of (`pandas.DataFrame`,`pandas.DataFrame`), where the first is
+        the training dataframe, the last is the set kept for validation
     """
     y = df["dialect"]
     train_df, valid_df = train_test_split(
@@ -78,19 +93,26 @@ def store_validation_set(
 def regex_substitute(
     series: Union[list, np.ndarray, pd.Series], regex_holder_dict: dict
 ) -> pd.Series:
-    """given an array-like, & a dictionary of RegExp:`placeholder`, the series
-    is processed to replace each RegExp with the corresponding `placeholder`
+    """given an array-like, & a dictionary of {RegExp:placeholder}, the series
+    is processed to replace each RegExp with the corresponding placeholder
 
     Parameters:
     -----------
+    series: `pandas.Series` or array-like
+        the list/series of strings on which the replacement would take place
+    regex_holder_dict: dict
+        a dictionary where keys are RegExp to be replaced by the value
 
     Returns:
     --------
+    out: `pd.Series`
+        the processed series where each RegExp match is replaced by its
+        placeholder
 
     Raises:
     -------
-
-    TODO complete the pydoc
+    ValueError:
+        if the series is not array-like or not `pandas.Series`
     """
     if not isinstance(series, pd.Series):
         try:
@@ -103,14 +125,24 @@ def regex_substitute(
 
 
 def preprocess(data: Union[list, np.ndarray, pd.Series, pd.DataFrame]) -> pd.Series:
-    """The actual preprocessing subroutine
+    """The preprocessing subroutine, taking in the data and apply
+    preprocessing steps on it
 
-    TODO complete pydoc
+    Parameters:
+    -----------
+    data: list, np.ndarray, pandas.Series, pandas.DataFrame
+        list or array-like of string values or a DataFrame having a column
+        named `tweets`
+
+    Returns:
+    --------
+    out: pandas.Series
+        a Series object with processed copy of the values
 
     """
     if isinstance(data, pd.DataFrame):
         if "tweets" not in data.columns:
-            raise Exception("FIXME write a proper exception")
+            raise ValueError("FIXME write a proper exception")
         # extract data as series
         data = data["tweets"]
     elif isinstance(data, list) or isinstance(data, np.ndarray):
@@ -148,15 +180,26 @@ def preprocess(data: Union[list, np.ndarray, pd.Series, pd.DataFrame]) -> pd.Ser
 def init_preprocess(
     test_size: float = 0.1,
 ) -> Tuple[pd.Series, pd.Series, pd.Series, pd.Series]:
-    """initialisation point for the training of the model
+    """the subroutine for preprocessing, loading the dataset, saving a
+    validation dataset, and preprocessing the data, returns the data
+    set as training/testing features/labels
 
-    TODO complete the pydoc
+    Parameters:
+    -----------
+    test_size: float
+        keyword argument to pass to `sklearn.model_selection.train_test_split`
+
+    Returns:
+    --------
+    out: tuple
+        a tuple of four Series objects:
+        (train features, test features, train labels, test labels)
     """
     full_df = load_full_dataset()
     # keep a validation set aside
     df, _ = store_validation_set(full_df)
 
-    df = preprocess(df.copy())
+    df["tweets"] = preprocess(df["tweets"])
 
     # split data
     X = df["tweets"]
@@ -164,8 +207,6 @@ def init_preprocess(
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=test_size, random_state=42, stratify=y
     )
-
-    # TODO do more preprocess
 
     return X_train, X_test, y_train, y_test
 
@@ -178,8 +219,13 @@ def build_tokeniser(
 
     Parameters:
     -----------
+    corpus: list, numpy.ndarray, pandas.Series
+        a list or array-like of strings for the tokeniser to fit on
 
-    TODO complete pydoc
+    Returns:
+    --------
+    out: tensorflow.keras.preprocessing.text.Tokenizer
+        a tokeniser object fit on the corpus
     """
     tokeniser = tf.keras.preprocessing.text.Tokenizer()
     _ = tokeniser.fit_on_texts(corpus)
@@ -197,8 +243,22 @@ def tokenise_pad_texts(
 
     Parameters:
     -----------
+    corpus: list, numpy.ndarray, pandas.Series
+        a list or array-like of strings for the tokeniser to fit on
+    tokeniser: None or tensorflow.keras.preprocessing.text.Tokenizer
+        the tokeniser object to tokenise the text, when equals None, a
+        tokeniser is instantiated and fit on the corpus
+    maxlen: int
+        keyword argument for
+        tensorflow.keras.preprocessing.sequence.pad_sequences
+    padding: string
+        keyword argument for
+        tensorflow.keras.preprocessing.sequence.pad_sequences
 
-    TODO complete pydoc
+    Returns:
+    --------
+    out: numpy.ndarray
+        a 2D numpy array of shape (len(corpus), maxlen)
     """
     if not tokeniser:
         tokeniser = build_tokeniser(corpus)
@@ -218,8 +278,13 @@ def onehot_encode_labels(labels: Union[list, np.ndarray, pd.Series]) -> np.ndarr
 
     Parameters:
     -----------
+    labels: list, numpy.ndarray, pandas.Series
+        list or array-like of categorical labels to be one hot encoded
 
-    TODO complete pydoc
+    Returns:
+    --------
+    out: numpy.ndarray
+        a sparse numpy.ndarray of shape (len(labels), len(labels))
     """
     labels = pd.Series(labels, dtype="category")
     return tf.keras.utils.to_categorical(labels.cat.codes)

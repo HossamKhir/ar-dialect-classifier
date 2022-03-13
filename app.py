@@ -2,17 +2,17 @@
 """
 
 import json
-import numpy as np
 import os
-from aim_task.fetch_data import DATA_PATH, load_classic_model
-from aim_task.preprocess_data import init_preprocess, preprocess
-from aim_task.model_training import (
-    build_naive_bayes_model,
-    tokenise_pad_texts,
-)
-from tensorflow.keras.models import model_from_json
-from tensorflow.keras.preprocessing.text import tokenizer_from_json, Tokenizer
+
+import numpy as np
 from flask import Flask, abort, jsonify, request
+from sklearn.preprocessing import OneHotEncoder
+from tensorflow.keras.models import model_from_json
+from tensorflow.keras.preprocessing.text import Tokenizer, tokenizer_from_json
+
+from aim_task.fetch_data import DATA_PATH, load_classic_model
+from aim_task.model_training import build_naive_bayes_model, tokenise_pad_texts
+from aim_task.preprocess_data import init_preprocess, onehot_encode_labels, preprocess
 
 DEBUG = False
 DOCS_LIMIT = 1000
@@ -109,7 +109,7 @@ if __name__ == "__main__":
             if "X_train" not in dir():
                 X_train, X_test, y_train, y_test = init_preprocess()
             model_classic = build_naive_bayes_model()
-            X = preprocess(np.r_[X_train, X_test])
+            X = np.r_[X_train, X_test]
             y = np.r_[y_train, y_test]
             _ = model_classic.fit(X, y)
 
@@ -141,6 +141,10 @@ if __name__ == "__main__":
         )
         if "X_train" not in dir():
             X_train, X_test, y_train, y_test = init_preprocess()
+        X_train = tokenise_pad_texts(X_train, tknsr)
+        X_test = tokenise_pad_texts(X_test, tknsr)
+        y_train = onehot_encode_labels(y_train)
+        y_test = onehot_encode_labels(y_test)
         model_rnn.fit(
             np.r_[X_train, X_test],
             np.r_[y_train, y_test],
